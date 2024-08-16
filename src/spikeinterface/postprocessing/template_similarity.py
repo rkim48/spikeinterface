@@ -234,8 +234,8 @@ def compute_similarity_with_templates_array(
                     distances[count, i, j] = sklearn.metrics.pairwise.pairwise_distances(src, tgt, metric="l2")
                     distances[count, i, j] /= norm_i + norm_j
                 else:
-                    distances[count, i, j] = sklearn.metrics.pairwise.pairwise_distances(src, tgt, metric="cosine")
-
+                    distance = sklearn.metrics.pairwise.pairwise_distances(src, tgt, metric="cosine")
+                    distances[count, i, j] = distance[0, 0]
                 if same_array:
                     distances[count, j, i] = distances[count, i, j]
 

@@ -104,6 +104,7 @@ class RemoveArtifactsRecording(BasePreprocessor):
         sparsity=None,
         scale_amplitude=False,
         time_jitter=0,
+        ch_indices_to_zero=None,
         waveforms_kwargs=None,
     ):
         if waveforms_kwargs is not None:
@@ -201,7 +202,17 @@ class RemoveArtifactsRecording(BasePreprocessor):
             triggers = list_triggers[seg_index]
             labels = list_labels[seg_index]
             rec_segment = RemoveArtifactsRecordingSegment(
-                parent_segment, triggers, pad, mode, fit_samples, artifacts, labels, scale_amplitude, time_pad, sparsity
+                parent_segment,
+                triggers,
+                pad,
+                mode,
+                fit_samples,
+                artifacts,
+                labels,
+                scale_amplitude,
+                time_pad,
+                sparsity,
+                ch_indices_to_zero,
             )
             self.add_recording_segment(rec_segment)
 
@@ -222,6 +233,7 @@ class RemoveArtifactsRecording(BasePreprocessor):
             scale_amplitude=scale_amplitude,
             time_jitter=time_jitter,
             sparsity=sparsity,
+            ch_indices_to_zero=ch_indices_to_zero,
         )
 
 
@@ -238,6 +250,7 @@ class RemoveArtifactsRecordingSegment(BasePreprocessorSegment):
         scale_amplitude,
         time_pad,
         sparsity,
+        ch_indices_to_zero=None,
     ):
         BasePreprocessorSegment.__init__(self, parent_recording_segment)
 
@@ -253,6 +266,7 @@ class RemoveArtifactsRecordingSegment(BasePreprocessorSegment):
         self.scale_amplitude = scale_amplitude
         self.time_pad = time_pad
         self.sparsity = sparsity
+        self.ch_indices_to_zero = ch_indices_to_zero
 
     def get_traces(self, start_frame, end_frame, channel_indices):
         if self.mode in ["average", "median"]:
@@ -268,18 +282,23 @@ class RemoveArtifactsRecordingSegment(BasePreprocessorSegment):
         pad = self.pad
 
         if self.mode == "zeros":
+            if self.ch_indices_to_zero is None:
+                ch_indices_to_zero = np.arange(traces.shape[1])
+            else:
+                ch_indices_to_zero = self.ch_indices_to_zero
+
             for trig in triggers:
                 if pad is None:
-                    traces[trig, :] = 0
+                    traces[trig, ch_indices_to_zero] = 0
                 else:
                     if trig - pad[0] > 0 and trig + pad[1] < end_frame - start_frame:
-                        traces[trig - pad[0] : trig + pad[1] + 1, :] = 0
+                        traces[trig - pad[0] : trig + pad[1] + 1, ch_indices_to_zero] = 0
                     elif trig - pad[0] <= 0 and trig + pad[1] >= end_frame - start_frame:
-                        traces[:] = 0
+                        traces[ch_indices_to_zero] = 0
                     elif trig - pad[0] <= 0:
-                        traces[: trig + pad[1], :] = 0
+                        traces[: trig + pad[1], ch_indices_to_zero] = 0
                     elif trig + pad[1] >= end_frame - start_frame:
-                        traces[trig - pad[0] :, :] = 0
+                        traces[trig - pad[0] :, ch_indices_to_zero] = 0
         elif self.mode in ["linear", "cubic"]:
             import scipy.interpolate
 
@@ -318,7 +337,8 @@ class RemoveArtifactsRecordingSegment(BasePreprocessorSegment):
 
                 # Get the median value from 5 samples around each fit point
                 # for robustness to noise / small fluctuations
-                pre_vals = []  #  np.zeros((0, traces.shape[1]), dtype=traces.dtype)1
+                #  np.zeros((0, traces.shape[1]), dtype=traces.dtype)1
+                pre_vals = []
                 for idx in iter(pre_idx):
                     if idx == pre_idx[-1]:
                         idxs = np.arange(idx - 3, idx + 1)

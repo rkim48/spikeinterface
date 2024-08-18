@@ -14,6 +14,8 @@ from .filter import (
     highpass_filter,
 )
 from .filter_gaussian import GaussianFilterRecording, gaussian_filter
+from .mean_artifact_subtract import MeanArtifactSubtractedRecording, mean_artifact_subtract
+from .trend_subtract import TrendSubtractedRecording, trend_subtract
 from .normalize_scale import (
     NormalizeByQuantileRecording,
     normalize_by_quantile,
@@ -78,6 +80,9 @@ preprocessers_full_list = [
     DirectionalDerivativeRecording,
     AstypeRecording,
     UnsignedToSignedRecording,
+    MeanArtifactSubtractedRecording,
+    TrendSubtractedRecording,
 ]
 
+installed_preprocessers_list = [pp for pp in preprocessers_full_list if pp.installed]
 preprocesser_dict = {pp_class.name: pp_class for pp_class in preprocessers_full_list}

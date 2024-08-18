@@ -106,7 +106,7 @@ def main(debug_folder=None):
         sorting = si.run_sorter(
             sorter_name="mountainsort5",
             recording=si.scale(rec_pre, dtype='float'),
-            folder="sorting",
+            folder=stage1_path / "sorting",
             remove_existing_folder=True,
             verbose=True,
             **ms5_params,

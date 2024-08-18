@@ -3,6 +3,9 @@ Some utils to handle parallel jobs on top of job and/or loky
 """
 
 from __future__ import annotations
+from threadpoolctl import threadpool_limits
+import multiprocessing as mp
+from concurrent.futures import ProcessPoolExecutor
 import numpy as np
 import platform
 import os
@@ -10,12 +13,12 @@ import warnings
 from spikeinterface.core.core_tools import convert_string_to_bytes, convert_bytes_to_str, convert_seconds_to_str
 
 import sys
-from tqdm.auto import tqdm
 
-from concurrent.futures import ProcessPoolExecutor
-import multiprocessing as mp
-from threadpoolctl import threadpool_limits
-
+# Try to import tqdm based on the environment (Spyder or not)
+if "SPY_PYTHONPATH" in os.environ:
+    from tqdm import tqdm  # Use standard tqdm if in Spyder
+else:
+    from tqdm.auto import tqdm  # Use auto-detection if not in Spyder
 
 _shared_job_kwargs_doc = """**job_kwargs : keyword arguments for parallel processing:
             * chunk_duration or chunk_size or chunk_memory or total_memory
@@ -64,9 +67,10 @@ def fix_job_kwargs(runtime_job_kwargs):
     job_kwargs = get_global_job_kwargs()
 
     for k in runtime_job_kwargs:
-        assert k in job_keys, (
-            f"{k} is not a valid job keyword argument. " f"Available keyword arguments are: {list(job_keys)}"
-        )
+        assert (
+            k in job_keys
+        ), f"{
+            k} is not a valid job keyword argument. Available keyword arguments are: {list(job_keys)}"
 
     # remove mutually exclusive from global job kwargs
     for k, v in runtime_job_kwargs.items():

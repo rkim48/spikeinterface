@@ -34,6 +34,7 @@ def main(debug_folder=None):
             make_folder=True,
             save_folder_name="batch_sort",
             first_N_files=1,
+            server_mount_drive="Z:"
         )
         rec = dataloader.recording
 
@@ -184,4 +185,15 @@ def main(debug_folder=None):
 
 # %%
 if __name__ == "__main__":
-    main(debug_folder='C:\\data\\ICMS93\\behavior\\30-Aug-2023')
+    path_1 = 'E:\\data\\ICMS93\\behavior\\30-Aug-2023'
+    path_2 = 'C:\\data\\ICMS93\\behavior\\30-Aug-2023'
+
+    if os.path.exists(path_1):
+        debug_folder = path_1
+    elif os.path.exists(path_2):
+        debug_folder = path_2
+    else:
+        debug_folder = None  # or raise an error, or assign a default path
+        print("Neither directory exists.")
+
+    main(debug_folder=debug_folder)

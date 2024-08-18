@@ -4,9 +4,9 @@ from pathlib import Path
 import os
 
 
-def load_data(data_folder, get_recording=True, make_folder=True, load_sorting=False, save_folder_name=None, first_N_files=4):
+def load_data(data_folder, server_mount_drive="S:", get_recording=True, make_folder=True, load_sorting=False, save_folder_name=None, first_N_files=4):
     dataloader = DataLoader(
-        data_folder, make_folder=make_folder, save_folder_name=save_folder_name)
+        data_folder, make_folder=make_folder, save_folder_name=save_folder_name, server_mount_drive=server_mount_drive)
     dataloader.get_save_folder()
     dataloader.get_base_server_folder()
     dataloader.get_ns5_and_mat_files(first_N_files=first_N_files)

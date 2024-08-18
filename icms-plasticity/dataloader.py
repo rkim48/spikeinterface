@@ -13,8 +13,8 @@ from probeinterface.io import read_probeinterface
 
 
 class DataLoader:
-    def __init__(self, data_folder: str, make_folder: bool, save_folder_name: str = None):
-        self.server_mount_drive = "S:"
+    def __init__(self, data_folder: str, make_folder: bool, save_folder_name: str = None, server_mount_drive: str = "S:"):
+        self.server_mount_drive = server_mount_drive
         self.data_folder = Path(data_folder)
         self.sub_folder = self.data_folder / "ChannelVolumetric"
         self.get_animal_id()
@@ -104,7 +104,7 @@ class DataLoader:
 
     def attach_probe(self):
         pi = read_probeinterface(
-            'C:\\Users\\robin\\Desktop\\Python\\si_env\\util\\net32Ch.json')
+            'util\\net32Ch.json')
         probe = pi.probes[0]
         self.recording.set_probe(probe, in_place=True)
 
@@ -117,7 +117,7 @@ class DataLoader:
         date = self._get_part_matching(parts, r'\d{2}-\w{3}-\d{4}')
         self.date = date
         subfolder = "ChannelVolumetric"
-        self.base_server_folder = os.path.join('S:',
+        self.base_server_folder = os.path.join(self.server_mount_drive,
                                                icms_id, "Keys", date, subfolder)
         assert (os.path.isdir(self.base_server_folder))
 

@@ -111,6 +111,14 @@ widgets = [
     "sortingview>=0.12.0",
 ]
 
+icms-plasticity = [
+    "black",
+    "pre-commit",
+    "seaborn",
+    "tkfilebrowser",
+    "python-pptx"
+]
+
 qualitymetrics = [
     "scikit-learn",
     "scipy",

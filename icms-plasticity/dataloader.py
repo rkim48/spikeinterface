@@ -7,7 +7,7 @@ import datetime
 from pathlib import Path
 from util.impedance_analyzer import ImpedanceAnalyzer
 import pandas as pd
-import psignifit as ps
+# import psignifit as ps
 import pickle
 from probeinterface.io import read_probeinterface
 

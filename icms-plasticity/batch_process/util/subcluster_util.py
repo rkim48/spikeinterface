@@ -167,7 +167,7 @@ def accept_subcluster(analyzer, unit_id, subcluster_indices, template_ch_dict, m
 
     if too_large_trough_to_peak(primary_ch_subc_template):
         print("\tTrough to peak too large.")
-        return original_indices, [], "large_trough_to_peak"
+        return original_indices, [], "large_T2P"
 
     # if bad_repolarization_time(primary_ch_subc_template):
     #     print('\tBad repolarization time.')
@@ -369,7 +369,8 @@ def plot_clustered_waveforms(
         else:
             title = f"Label {unique_label} ({template_labels[i-1]})"
 
-        ax.set_title(f"{title}\n{len(event_indices)} waveforms")
+        ax.set_title(f"{title}\n{len(event_indices)} waveforms", fontsize=9)
+
         ax.set_ylim([-500, 300])
 
         ax.set_xticks([0, 1, 2, 3])

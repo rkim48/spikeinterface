@@ -29,20 +29,27 @@ def mean_norm_peak(dense_template, sparse_ch_indices, min_idx=30, range_offset=1
     return mnr
 
 
-def exclude_artifact_subcluster(we, unit_id, subcluster_indices):
+def exclude_artifact_subcluster(analyzer, unit_id, subcluster_indices):
     # set 120 um sparsity radius to ignore more channels nearby primary channel
     # for mean_norm_peak calculation
-    sparsity = si.compute_sparsity(we, method="radius", radius_um=120)
-    unit_id_to_ch_ind = sparsity.unit_id_to_channel_indices
-    sparse_ch_indices = unit_id_to_ch_ind[unit_id]
-    we.sparsity = None
+    sparse_analyzer = analyzer.copy()
 
-    wvfs = we.get_waveforms(unit_id)
+    sparse_analyzer.sparsity = si.compute_sparsity(
+        sparse_analyzer, method="radius", radius_um=120)
+    unit_id_to_ch_ind = sparse_analyzer.sparsity.unit_id_to_channel_indices
+    sparse_ch_indices = unit_id_to_ch_ind[unit_id]
+
+    # dense analyzer
+    wvf_ext = analyzer.get_extension("waveforms")
+    wvfs = wvf_ext.get_waveforms_one_unit(unit_id=unit_id)
     dense_template = np.mean(wvfs[subcluster_indices, :, :], axis=0)
 
     mnr = mean_norm_peak(dense_template, sparse_ch_indices)
+
     # set 60 um sparsity radius
-    we.sparsity = si.compute_sparsity(we, method="radius", radius_um=60)
+    # analyzer.sparsity = si.compute_sparsity(
+    #     analyzer, method="radius", radius_um=60)
+
     # if greater than 0.25, exclude
     return mnr > 0.25
 
@@ -127,26 +134,30 @@ def isi_violation_percentage(spike_train, refractory_period=2e-3, threshold=2):
     return violation_percentage, isi_good
 
 
-def accept_subcluster(we, unit_id, subcluster_indices, min_idx=30, max_iterations=5):
+def accept_subcluster(analyzer, unit_id, subcluster_indices, template_ch_dict, min_idx=30, max_iterations=5):
     original_indices = np.arange(len(subcluster_indices))
 
-    template_ch_dict = get_template_ch(we)
-    wvf_shape = we.get_template(unit_id).shape
-    if wvf_shape[1] <= 3:
+    templates = analyzer.get_extension("templates")
+    template = templates.get_unit_template(unit_id)
+
+    wvf_ext = analyzer.get_extension("waveforms")
+    wvfs = wvf_ext.get_waveforms_one_unit(unit_id=unit_id)
+
+    wvf_shape = template.shape
+
+    if templates.sparsity is None:
         primary_ch_idx = template_ch_dict[unit_id]["primary_ch_idx_dense"]
     else:
         primary_ch_idx = template_ch_dict[unit_id]["primary_ch_idx_sparse"]
 
-    primary_ch_subc_wvfs = we.get_waveforms(unit_id=unit_id)[
-        subcluster_indices, :, primary_ch_idx
-    ]
+    primary_ch_subc_wvfs = wvfs[subcluster_indices, :, primary_ch_idx]
 
     primary_ch_subc_template = np.mean(primary_ch_subc_wvfs, axis=0)
 
-    spike_train = we.sorting.get_unit_spike_train(unit_id=unit_id)[
+    spike_train = analyzer.sorting.get_unit_spike_train(unit_id=unit_id)[
         subcluster_indices]
 
-    if exclude_artifact_subcluster(we, unit_id, subcluster_indices):
+    if exclude_artifact_subcluster(analyzer, unit_id, subcluster_indices):
         print("\tSubcluster classified as artifact.")
         return original_indices, [], "artifact"
 
@@ -205,17 +216,17 @@ def accept_subcluster(we, unit_id, subcluster_indices, min_idx=30, max_iteration
     return current_indices, np.setdiff1d(original_indices, current_indices), "accept"
 
 
-def post_hoc_check(we, unit_id, subcluster_indices, min_idx=30):
+def post_hoc_check(analyzer, unit_id, subcluster_indices, min_idx=30):
     original_indices = np.arange(len(subcluster_indices))
 
-    template_ch_dict = get_template_ch(we)
-    wvf_shape = we.get_template(unit_id).shape
+    template_ch_dict = get_template_ch(analyzer)
+    wvf_shape = analyzer.get_template(unit_id).shape
     if wvf_shape[1] <= 3:
         primary_ch_idx = template_ch_dict[unit_id]["primary_ch_idx_dense"]
     else:
         primary_ch_idx = template_ch_dict[unit_id]["primary_ch_idx_sparse"]
 
-    primary_ch_subc_wvfs = we.get_waveforms(unit_id=unit_id)[
+    primary_ch_subc_wvfs = analyzer.get_waveforms(unit_id=unit_id)[
         subcluster_indices, :, primary_ch_idx
     ]
     # plt.figure()
@@ -223,14 +234,14 @@ def post_hoc_check(we, unit_id, subcluster_indices, min_idx=30):
 
     primary_ch_subc_template = np.mean(primary_ch_subc_wvfs, axis=0)
 
-    spike_train = we.sorting.get_unit_spike_train(unit_id=unit_id)[
+    spike_train = analyzer.sorting.get_unit_spike_train(unit_id=unit_id)[
         subcluster_indices]
 
     snr_valley, snr_good = calculate_snr(
         primary_ch_subc_wvfs, min_idx, original_indices
     )
 
-    if exclude_artifact_subcluster(we, unit_id, subcluster_indices):
+    if exclude_artifact_subcluster(analyzer, unit_id, subcluster_indices):
         print("\tSubcluster classified as artifact.")
         return "artifact"
 
@@ -285,11 +296,11 @@ def plot_umap_subcluster(unit_id, x, y, final_labels, subcluster_ids):
 
 
 def plot_clustered_waveforms(
-    we,
+    analyzer,
+    template_ch_dict,
     unit_id,
-    split_indices_list,
+    waveform_labels,
     template_labels,
-    mean_norm_peaks=None,
     plot_mean_std=True,
     N=2,
     fig_width=6,
@@ -297,15 +308,15 @@ def plot_clustered_waveforms(
 ):
     # Ignore label 0 noise events
     colors = ["k", "C0", "C1", "C2", "C3", "C4", "C5"]
-    unique_labels, counts = np.unique(split_indices_list, return_counts=True)
+    unique_labels, counts = np.unique(waveform_labels, return_counts=True)
 
     primary_cluster_index = np.argmax(counts)
     primary_cluster_label = unique_labels[primary_cluster_index]
-    wvfs = we.get_waveforms(unit_id=unit_id)
 
-    template_ch_dict = get_template_ch(we)
+    wvf_ext = analyzer.get_extension("waveforms")
+    wvfs = wvf_ext.get_waveforms_one_unit(unit_id=unit_id)
 
-    if wvfs.shape[2] > 3:
+    if analyzer.sparsity is None:
         key = "primary_ch_idx_dense"
     else:
         key = "primary_ch_idx_sparse"
@@ -321,7 +332,7 @@ def plot_clustered_waveforms(
 
     for i, unique_label in enumerate(unique_labels):
         ax = axes[i]
-        event_indices = np.where(split_indices_list == unique_label)[0]
+        event_indices = np.where(waveform_labels == unique_label)[0]
 
         all_wvfs = wvfs[event_indices, :, primary_ch_idx]
 
@@ -354,7 +365,7 @@ def plot_clustered_waveforms(
                 )
 
         if unique_label == 0:
-            title = "Label 0 (discarded waveforms)"
+            title = "Label 0 (discarded)"
         else:
             title = f"Label {unique_label} ({template_labels[i-1]})"
 

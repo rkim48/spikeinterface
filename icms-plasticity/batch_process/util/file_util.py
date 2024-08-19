@@ -2,7 +2,6 @@ import shutil
 from pathlib import Path
 import tkinter as tk
 from tkfilebrowser import askopendirnames
-from util.is_valid_folder import is_valid_folder
 import os
 import re
 import json
@@ -75,3 +74,38 @@ def get_date_str(folder):
         return match.group()
     else:
         raise ValueError("Date string not found in the folder path.")
+
+
+def is_valid_folder(folder_path, required_subfolder=None, file_patterns=None):
+    if required_subfolder is None:
+        required_subfolder = "ChannelVolumetric"
+    if file_patterns is None:
+        file_patterns = [f"block{i}_H.*" for i in range(1, 5)]
+    if not os.path.isdir(folder_path):
+        print(f"The folder {folder_path} does not exist.")
+        return False
+
+    required_subfolder_path = os.path.join(folder_path, required_subfolder)
+    if not os.path.isdir(required_subfolder_path):
+        print(
+            f"The required subfolder {required_subfolder} is missing from {folder_path}.")
+        return False
+
+    subfolder_contents = os.listdir(required_subfolder_path)
+    for pattern in file_patterns:
+        mat_pattern = re.compile(f"{pattern}.mat")
+        ns5_pattern = re.compile(f"{pattern}.ns5")
+
+        mat_files = [f for f in subfolder_contents if mat_pattern.match(f)]
+        ns5_files = [f for f in subfolder_contents if ns5_pattern.match(f)]
+
+        if not mat_files or not ns5_files:
+            print(
+                f"Missing files for pattern {pattern} in {required_subfolder_path}.")
+            return False
+        if len(mat_files) > 1 or len(ns5_files) > 1:
+            print(
+                f"Multiple files found for pattern {pattern} in {required_subfolder_path}.")
+            return False
+
+    return True

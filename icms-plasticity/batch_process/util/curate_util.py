@@ -1,3 +1,4 @@
+from batch_process.util.ppt_image_inserter import PPTImageInserter
 import numpy as np
 from spikeinterface import full as si
 from pathlib import Path
@@ -8,20 +9,65 @@ from batch_process.util.file_util import *
 from batch_process.util.plotting import plot_units_in_batches
 
 # %%
+# analyzer.sparsity = None
+# analyzer.compute("templates")
+# a = analyzer.get_extension("templates")
+# plt.plot(a.get_unit_template(unit_id=2))
+
+
+# TEST
+# unit_id = 1
+# analyzer.sparsity = None
+# analyzer.compute("random_spikes")
+# analyzer.compute("waveforms")
+# analyzer.compute("templates")
+
+# dense_analyzer = analyzer.copy()
+
+# sparse_analyzer = analyzer.copy()
+# sparse_analyzer.sparsity = si.compute_sparsity(
+#     sparse_analyzer, method="radius", radius_um=60)
+# sparse_analyzer.compute("random_spikes")
+# sparse_analyzer.compute("waveforms")
+# sparse_analyzer.compute("templates")
+# sparse_templates = sparse_analyzer.get_extension("templates")
+
+# plt.plot(sparse_templates.get_unit_template(unit_id=unit_id))
+
+# plt.figure()
+# plt.title("Dense template")
+# dense_templates = dense_analyzer.get_extension("templates")
+
+# plt.plot(dense_templates.get_unit_template(unit_id=unit_id))
+
+# # Test extremum ch id
+# template_extremum_ch = si.get_template_extremum_channel(
+#     sparse_analyzer, outputs="id")  # 2
+# unit_id_to_ch_ids = sparse_analyzer.sparsity.unit_id_to_channel_ids
+# primary_ch = template_extremum_ch[unit_id]
+# ch_ids = unit_id_to_ch_ids[unit_id]
+# all_ch_ids = analyzer.channel_ids
+# np.where(ch_ids == str(primary_ch))[0][0]
+# np.where(all_ch_ids == str(primary_ch))[0][0]
+
+# plt.plot(templates.get_unit_template(unit_id=unit_id))
 
 
 def get_template_ch(analyzer):
     all_ch_ids = analyzer.channel_ids
     unit_ids = analyzer.unit_ids
     if analyzer.sparsity is None:
-        analyzer.sparsity = si.compute_sparsity(
-            analyzer, method="radius", radius_um=60)
-        analyzer.compute("templates")
-        templates = analyzer.get_extension("templates")
+        sparse_analyzer = analyzer.copy()
+        sparse_analyzer.sparsity = si.compute_sparsity(
+            sparse_analyzer, method="radius", radius_um=60)
+        sparse_analyzer.compute("random_spikes")
+        sparse_analyzer.compute("waveforms")
+        sparse_analyzer.compute("templates")
+        # templates = sparse_analyzer.get_extension("templates")
 
     template_extremum_ch = si.get_template_extremum_channel(
-        analyzer, outputs="id")
-    unit_id_to_ch_ids = analyzer.sparsity.unit_id_to_channel_ids
+        sparse_analyzer, outputs="id")
+    unit_id_to_ch_ids = sparse_analyzer.sparsity.unit_id_to_channel_ids
 
     template_ch_dict = {}
     for unit_id in unit_ids:
@@ -30,8 +76,8 @@ def get_template_ch(analyzer):
         template_ch_dict[unit_id] = {
             "ch_ids": ch_ids,
             "primary_ch": primary_ch,
-            "primary_ch_idx_sparse": np.where(ch_ids == primary_ch)[0][0],
-            "primary_ch_idx_dense": np.where(all_ch_ids == primary_ch)[0][0],
+            "primary_ch_idx_sparse": np.where(ch_ids == str(primary_ch))[0][0],
+            "primary_ch_idx_dense": np.where(all_ch_ids == str(primary_ch))[0][0],
         }
     return template_ch_dict
 
@@ -228,7 +274,7 @@ def curate_and_plot(analyzer, parent_folder, subfolder_path, save_path=None, cur
     return bad_analyzer, bad_ids, good_analyzer
 
 
-def remove_bad_waveforms_A(analyzer, unit_id):
+def remove_bad_waveforms_A(analyzer, unit_id, template_ch_dict, plot_flag=False):
     """
     To remove waveforms with a string of 3 zeros in specific windows (24-30 and 32-45),
     waveforms with values above -40 µV at indices 29, 30, 31, and waveforms
@@ -236,12 +282,13 @@ def remove_bad_waveforms_A(analyzer, unit_id):
     """
 
     # Load waveforms and channel info
-    wvfs = analyzer.get_waveforms(unit_id=unit_id)
+
+    wvf_ext = analyzer.get_extension("waveforms")
+    wvfs = wvf_ext.get_waveforms_one_unit(unit_id=unit_id)
     num_wvfs = wvfs.shape[0]
 
-    template_ch_dict = get_template_ch(analyzer)
-    primary_ch_idx = template_ch_dict[unit_id]["primary_ch_idx_dense"]
-    primary_wvfs = wvfs[:, :, primary_ch_idx]
+    primary_ch_idx_dense = template_ch_dict[unit_id]["primary_ch_idx_dense"]
+    primary_wvfs = wvfs[:, :, primary_ch_idx_dense]
 
     # Find waveforms whose max channel is template primary channel
     has_incorrect_primary_ch = np.zeros(num_wvfs, dtype=bool)
@@ -249,10 +296,11 @@ def remove_bad_waveforms_A(analyzer, unit_id):
         wvf = wvfs[i]
         # Check if the max amplitude channel matches the template max amplitude channel
         max_idx = np.argmin(wvf[30, :])  # hard coded!
-        if max_idx != primary_ch_idx:
+        if max_idx != primary_ch_idx_dense:
             has_incorrect_primary_ch[i] = True
 
-    extremum_ch_inds = si.get_template_extremum_channel(we, outputs="index")
+    extremum_ch_inds = si.get_template_extremum_channel(
+        analyzer, outputs="index")
     sv = analyzer.sorting.to_spike_vector(
         extremum_channel_inds=extremum_ch_inds)
 
@@ -290,7 +338,52 @@ def remove_bad_waveforms_A(analyzer, unit_id):
         | high_amplitude_mask
     )
 
-    good_idx = np.where(~combined_mask)[0]
-    bad_idx = np.where(combined_mask)[0]
+    good_indices = np.where(~combined_mask)[0]
+    bad_indices = np.where(combined_mask)[0]
 
-    return good_idx, bad_idx
+    if plot_flag:
+        validate_remove_bad_waveforms(
+            analyzer, unit_id, primary_ch_idx_dense, good_idx, bad_idx)
+
+    return good_indices, bad_indices
+
+
+def validate_remove_bad_waveforms(analyzer, unit_id, primary_ch_idx_dense, good_indices, bad_indices):
+
+    wvf_ext = analyzer.get_extension("waveforms")
+    wvfs = wvf_ext.get_waveforms_one_unit(unit_id=unit_id)
+
+    good_indices_trunc = good_idx[:np.min([len(good_indices), 500])]
+    bad_indices_trunc = bad_idx[:np.min([len(bad_indices), 500])]
+
+    templates = analyzer.get_extension("templates")
+    template = templates.get_unit_template(unit_id)
+
+    good_waveforms = wvfs[good_indices_trunc, :, primary_ch_idx_dense].T
+    bad_waveforms = wvfs[bad_indices_trunc, :, primary_ch_idx_dense].T
+
+    plt.plot(good_waveforms, 'g', linewidth=0.5, alpha=0.2)
+    plt.plot(bad_waveforms, 'r', linewidth=0.5, alpha=0.2)
+
+
+# %% Visualize
+
+# ppt_inserter = PPTImageInserter(
+#     grid_dims=(2, 2), spacing=(0.05, 0.05), title_font_size=16
+# )
+
+# analyzer.sparsity = None
+
+# analyzer.compute("random_spikes", method="all")
+# analyzer.compute("waveforms")
+# analyzer.compute("templates")
+
+# for unit_id in unit_ids:
+#     remove_bad_waveforms_A(analyzer, unit_id, template_ch_dict, plot_flag=True)
+
+#     img_path = "img.png"
+#     plt.savefig(str(img_path))
+#     ppt_inserter.add_image(str(img_path))
+#     plt.close()
+
+# ppt_inserter.save("test.pptx")

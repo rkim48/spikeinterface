@@ -22,6 +22,8 @@ def main(debug_folder):
         print("###########################################")
 
         save_folder = Path(data_folder) / "batch_sort"
+        stage2_path = Path(save_folder) / "stage2"
+        create_folder(stage2_path)
         analyzer = si.load_sorting_analyzer(
             folder=save_folder / "stage1/stage1_analyzer.zarr")
 
@@ -52,7 +54,7 @@ def main(debug_folder):
             sorting=good_sorting,
             recording=analyzer.recording,
             format="zarr",
-            folder=Path(save_folder) / "stage2/stage2_analyzer.zarr",
+            folder=Path(stage2_path) / "stage2_analyzer.zarr",
             sparse=False,
             overwrite=True,
         )
@@ -66,7 +68,18 @@ def main(debug_folder):
 
 
 if __name__ == "__main__":
-    main(debug_folder='C:\\data\\ICMS93\\behavior\\30-Aug-2023')
+    path_1 = 'E:\\data\\ICMS93\\behavior\\30-Aug-2023'
+    path_2 = 'C:\\data\\ICMS93\\behavior\\30-Aug-2023'
+
+    if os.path.exists(path_1):
+        debug_folder = path_1
+    elif os.path.exists(path_2):
+        debug_folder = path_2
+    else:
+        debug_folder = None  # or raise an error, or assign a default path
+        print("Neither directory exists.")
+
+    main(debug_folder=debug_folder)
 
 # %%
 # unit_colors = {unit_id: 'k' for unit_id in analyzer.unit_ids}

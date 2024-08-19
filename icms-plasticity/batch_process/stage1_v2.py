@@ -22,7 +22,7 @@ def main(debug_folder=None):
         starting_dir = "C:\\data"
         data_folders = file_dialog(starting_dir=starting_dir)
 
-    job_kwargs = dict(n_jobs=5, chunk_duration="1s", progress_bar=True)
+    job_kwargs = dict(n_jobs=1, chunk_duration="1s", progress_bar=True)
 
     for i, data_folder in enumerate(data_folders):
         print("\n###########################################")

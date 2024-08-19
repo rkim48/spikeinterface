@@ -100,8 +100,10 @@ class CurationSorting:
             edges = edges + [(node_t(split_unit_id, i), node_t(u, i + 1)) for u in new_unit_ids]
         else:
             edges = None
-        self.max_used_id = self.max_used_id + 2
+        # Robin edit
+        self.max_used_id = max(self.max_used_id, max(new_unit_ids))
         self._add_new_stage(new_sorting, edges)
+        return new_unit_ids
 
     def merge(self, units_to_merge, new_unit_id=None, delta_time_ms=0.4):
         """

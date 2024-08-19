@@ -30,15 +30,10 @@ def main(debug_folder=None):
         print("###########################################")
         start_time = time.time()
         dataloader = load_data(
-            data_folder,
-            make_folder=True,
-            save_folder_name="batch_sort",
-            first_N_files=1,
-            server_mount_drive="Z:"
+            data_folder, make_folder=True, save_folder_name="batch_sort", first_N_files=4, server_mount_drive="S:"
         )
         rec = dataloader.recording
 
-        server_mount_drive = "S:"
         animalID = dataloader.animalID
         channel_ids = dataloader.channel_ids
         all_stim_timestamps = dataloader.all_stim_timestamps
@@ -47,8 +42,7 @@ def main(debug_folder=None):
 
         # Preprocessing parameters
         flattened_stim = [ts for l in all_stim_timestamps for ts in l]
-        offset_stim_ts = [[int(item + 0) for item in sublist]
-                          for sublist in all_stim_timestamps]
+        offset_stim_ts = [[int(item + 0) for item in sublist] for sublist in all_stim_timestamps]
 
         art_remove_pre = 0.5
         art_remove_post1 = 1.4
@@ -60,25 +54,32 @@ def main(debug_folder=None):
         # when saving the recording object during sorting is not appropriate. Rather, get traces, convert to rec object,
         # and then use that for sorting.
         rec1 = sp.remove_artifacts(
-            rec, flattened_stim,  ms_before=art_remove_pre, ms_after=art_remove_post1, mode='zeros')
-        rec2 = sp.mean_artifact_subtract(
-            rec1, list_triggers=offset_stim_ts, post_stim_window_ms=10, mode='median')
+            rec, flattened_stim, ms_before=art_remove_pre, ms_after=art_remove_post1, mode="zeros"
+        )
+        rec2 = sp.mean_artifact_subtract(rec1, list_triggers=offset_stim_ts, post_stim_window_ms=10, mode="median")
         rec3 = sp.trend_subtract(
-            rec2, all_stim_timestamps, trend_remove_post_pulse_start, trend_remove_post_pulse_end, mode='poly', poly_order=3)
+            rec2,
+            all_stim_timestamps,
+            trend_remove_post_pulse_start,
+            trend_remove_post_pulse_end,
+            mode="poly",
+            poly_order=3,
+        )
         rec4 = sp.common_reference(rec3, operator="median", reference="global")
         rec5 = sp.remove_artifacts(
-            rec4, flattened_stim, ms_before=art_remove_pre, ms_after=art_remove_post1, mode='cubic')
+            rec4, flattened_stim, ms_before=art_remove_pre, ms_after=art_remove_post1, mode="cubic"
+        )
         rec6 = sp.bandpass_filter(rec5, freq_min=300, freq_max=5000)
         rec7 = sp.remove_artifacts(
-            rec6, flattened_stim,  ms_before=art_remove_pre, ms_after=art_remove_post2, mode='zeros')
+            rec6, flattened_stim, ms_before=art_remove_pre, ms_after=art_remove_post2, mode="zeros"
+        )
 
         # Load traces into memory
         print("Loading preprocessed traces into memory...")
         trace7 = rec7.get_traces(return_scaled=False)
 
         # Convert to recording object
-        rec_pre = si.numpyextractors.NumpyRecording(
-            trace7, sampling_frequency=fs, channel_ids=rec.channel_ids)
+        rec_pre = si.numpyextractors.NumpyRecording(trace7, sampling_frequency=fs, channel_ids=rec.channel_ids)
         rec_pre.set_channel_gains(rec.get_channel_gains())
         rec_pre.set_channel_offsets(rec.get_channel_offsets())
         rec_pre.set_channel_locations(rec.get_channel_locations())
@@ -87,9 +88,8 @@ def main(debug_folder=None):
         stage1_path = Path(save_folder) / "stage1"
         create_folder(stage1_path)
         zarr_folder = stage1_path / "preproc"
-        rec_pre.save_to_zarr(folder=zarr_folder,
-                             overwrite=True, **job_kwargs)
-        rec_pre = si.load_extractor(zarr_folder.with_suffix('.zarr'))
+        rec_pre.save_to_zarr(folder=zarr_folder, overwrite=True, **job_kwargs)
+        rec_pre = si.load_extractor(zarr_folder.with_suffix(".zarr"))
 
         # Sort
         ms5_params = {
@@ -106,7 +106,7 @@ def main(debug_folder=None):
 
         sorting = si.run_sorter(
             sorter_name="mountainsort5",
-            recording=si.scale(rec_pre, dtype='float'),
+            recording=si.scale(rec_pre, dtype="float"),
             folder=stage1_path / "sorting",
             remove_existing_folder=True,
             verbose=True,
@@ -114,11 +114,7 @@ def main(debug_folder=None):
         )
 
         analyzer = si.create_sorting_analyzer(
-            sorting=sorting,
-            recording=rec_pre,
-            format="memory",
-            sparse=False,
-            return_scaled=False
+            sorting=sorting, recording=rec_pre, format="memory", sparse=False, return_scaled=False
         )
 
         analyzer.compute("random_spikes", method="all")  # gets all spikes
@@ -127,14 +123,12 @@ def main(debug_folder=None):
         analyzer.compute("correlograms")
 
         # plot figures before curating
-        plot_units_in_batches(
-            analyzer, save_dir=stage1_path, ppt_name="test")
+        plot_units_in_batches(analyzer, save_dir=stage1_path, ppt_name="test")
 
         # # curate units and save plotted figures in folder
         good_ids, bad_ids = curate_units(analyzer)
         # save analyzer
-        analyzer.select_units(
-            unit_ids=good_ids, format="zarr", folder=stage1_path / 'stage1_analyzer')
+        analyzer.select_units(unit_ids=good_ids, format="zarr", folder=stage1_path / "stage1_analyzer")
 
         # bad_events_dict = get_bad_events_dict(bad_analyzer, bad_ids, sorting)
         # replace_ch_indices = list(bad_events_dict.keys())
@@ -185,8 +179,8 @@ def main(debug_folder=None):
 
 # %%
 if __name__ == "__main__":
-    path_1 = 'E:\\data\\ICMS93\\behavior\\30-Aug-2023'
-    path_2 = 'C:\\data\\ICMS93\\behavior\\30-Aug-2023'
+    path_1 = "E:\\data\\ICMS93\\behavior\\30-Aug-2023"
+    path_2 = "C:\\data\\ICMS93\\behavior\\30-Aug-2023"
 
     if os.path.exists(path_1):
         debug_folder = path_1

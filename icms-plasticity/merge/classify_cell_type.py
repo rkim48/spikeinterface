@@ -56,6 +56,8 @@ def classify_unit(cell_metrics):
         }
     )
 
+    df.set_index("unit_id", inplace=True)
+
     return df
 
 
@@ -82,9 +84,8 @@ def fit_acg(acg_list):
 
     def fit_equation(x, a, b, c, d, e, f, g, h):
         return np.maximum(
-            c * (np.exp(-(x - f) / a) - d * np.exp(-(x - f) / b))
-            + h * np.exp(-(x - f) / g)
-            + e,
+            c * (np.exp(-(x - f) / a) - d * np.exp(-(x - f) / b)) +
+            h * np.exp(-(x - f) / g) + e,
             0,
         )
 
@@ -96,9 +97,8 @@ def fit_acg(acg_list):
             y_data = acg_array[i, valid_indices]
             spike_count_values.append(sum(y_data))
 
-            popt, _ = curve_fit(
-                fit_equation, x, y_data, p0=a0, bounds=(lb, ub), maxfev=5000
-            )
+            popt, _ = curve_fit(fit_equation, x, y_data,
+                                p0=a0, bounds=(lb, ub), maxfev=5000)
 
             fit_params_array[:, i] = popt
             residuals = y_data - fit_equation(x, *popt)
@@ -128,11 +128,11 @@ def fit_acg(acg_list):
     return fit_params, spike_count_values
 
 
-def classify_child_units_into_cell_types(we_accept):
+def classify_units_into_cell_types(analyzer):
     """
     Parameters
     ----------
-    we_accept : waveform extractor with accepted unit ids only
+    analyzer : sorting analyzer with accepted unit ids only
 
     Returns
     -------
@@ -140,48 +140,44 @@ def classify_child_units_into_cell_types(we_accept):
     """
     # Classify child units into putative cell types
     templates_dict = {}
-    for unit_id in we_accept.unit_ids:
-        template = we_accept.get_template(unit_id)
+    for unit_id in analyzer.unit_ids:
+        templates = analyzer.get_extension("templates")
+        template = templates.get_unit_template(unit_id)
         templates_dict[unit_id] = template
 
-    ccgs, time_bins = si.compute_correlograms(we_accept, window_ms=100, bin_ms=0.5)
-    acg_dict = {unit_id: ccgs[i, i, :] for i, unit_id in enumerate(we_accept.unit_ids)}
+    # if not analyzer.has_extension("correlograms"):
+    analyzer.compute("correlograms", window_ms=100, bin_ms=0.5)
+
+    ccgs_ext = analyzer.get_extension("correlograms")
+    ccgs, time_bins = ccgs_ext.get_data()
+
+    acg_dict = {unit_id: ccgs[i, i, :]
+                for i, unit_id in enumerate(analyzer.unit_ids)}
 
     fit_params, spike_count_values = fit_acg(list(acg_dict.values()))
-    trough_to_peak_values = {
-        unit_id: get_trough_to_peak_ms(template)
-        for unit_id, template in templates_dict.items()
-    }
+    trough_to_peak_values = {unit_id: get_trough_to_peak_ms(
+        template) for unit_id, template in templates_dict.items()}
     spike_count_values = {
-        unit_id: count
-        for unit_id, count in zip(
-            we_accept.unit_ids, we_accept.sorting.get_total_num_spikes().values()
-        )
+        unit_id: count for unit_id, count in zip(analyzer.unit_ids, analyzer.sorting.get_total_num_spikes().values())
     }
 
     cell_metrics = {
-        "unit_id": np.array(we_accept.unit_ids),
-        "trough_to_peak": np.array(
-            [trough_to_peak_values[unit_id] for unit_id in we_accept.unit_ids]
-        ),
+        "unit_id": np.array(analyzer.unit_ids),
+        "trough_to_peak": np.array([trough_to_peak_values[unit_id] for unit_id in analyzer.unit_ids]),
         "acg_tau_rise": np.array(fit_params["acg_tau_rise"]),
         "acg_tau_decay": np.array(fit_params["acg_tau_decay"]),
         "r_squared": np.array(fit_params["acg_fit_rsquare"]),
-        "spike_count": np.array(
-            [spike_count_values[unit_id] for unit_id in we_accept.unit_ids]
-        ),
+        "spike_count": np.array([spike_count_values[unit_id] for unit_id in analyzer.unit_ids]),
     }
 
     df = classify_unit(cell_metrics)
 
     fit_params_dict = {
-        unit_id: {key: fit_params[key][i] for key in fit_params}
-        for i, unit_id in enumerate(we_accept.unit_ids)
+        unit_id: {key: fit_params[key][i] for key in fit_params} for i, unit_id in enumerate(analyzer.unit_ids)
     }
 
     result = {
         "df": df,
-        "templates": templates_dict,
         "acgs": acg_dict,
         "fit_params": fit_params_dict,
     }
@@ -216,9 +212,8 @@ def plot_acg_with_fit(result, unit_id, ax=None):
 
     x = np.arange(1, 101) / 2
     fit = np.maximum(
-        c * (np.exp(-(x - f) / a) - d * np.exp(-(x - f) / b))
-        + h * np.exp(-(x - f) / g)
-        + e,
+        c * (np.exp(-(x - f) / a) - d * np.exp(-(x - f) / b)) +
+        h * np.exp(-(x - f) / g) + e,
         0,
     )
 
@@ -238,13 +233,14 @@ def plot_acg_with_fit(result, unit_id, ax=None):
 
     if use_own_ax:
         ax.set_title(
-            f'Unit ID: {unit_id}, Cell Type: {cell_type}, Trough to Peak: {cell_metrics["trough_to_peak"]:.2f} ms\n'
-            f'ACG Tau Rise: {b:.2f} ms, $R^2$: {r_sq:.2f}'
+            f'Unit ID: {unit_id}, Cell Type: {cell_type}, Trough to Peak: {
+                cell_metrics["trough_to_peak"]:.2f} ms\n'
+            f"ACG Tau Rise: {b:.2f} ms, $R^2$: {r_sq:.2f}"
         )
     else:
         ax.set_title(
             f'{cell_type}, T2P: {cell_metrics["trough_to_peak"]:.2f} ms\n'
-            f'ACG Tau Rise: {b:.2f} ms, $R^2$: {r_sq:.2f}'
+            f"ACG Tau Rise: {b:.2f} ms, $R^2$: {r_sq:.2f}"
         )
 
     plt.show()
@@ -259,9 +255,8 @@ def plot_primary_wvf_with_acg_with_fit(result, unit_id):
     template_x = np.arange(template.shape[0]) / 30
     min_values_within_range = np.min(template[20:40, :], axis=0)
     global_min_index = np.argmin(min_values_within_range)
-    axes[0].plot(
-        template_x, template[:, global_min_index], label="Template (Primary Channel)"
-    )
+    axes[0].plot(template_x, template[:, global_min_index],
+                 label="Template (Primary Channel)")
     axes[0].set_xlabel("Time (ms)")
     axes[0].set_ylabel("Amplitude")
 

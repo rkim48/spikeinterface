@@ -5,13 +5,14 @@ from tkfilebrowser import askopendirnames
 import os
 import re
 import json
+from datetime import datetime
 
 
 def create_folder(folder_path):
     folder = Path(folder_path)
 
-    if folder.exists() and folder.is_dir():
-        shutil.rmtree(folder)
+    # if folder.exists() and folder.is_dir():
+    #     shutil.rmtree(folder)
 
     folder.mkdir(parents=True, exist_ok=True)
 
@@ -23,8 +24,7 @@ def file_dialog(starting_dir="E:\\robin"):
     selected_folders = askopendirnames(initialdir=starting_dir)
 
     if selected_folders:
-        valid_folders = [
-            folder for folder in selected_folders if is_valid_folder(folder)]
+        valid_folders = [folder for folder in selected_folders if is_valid_folder(folder)]
         print("\nValid folders:")
         for folder in valid_folders:
             print(f"- {folder}")
@@ -37,8 +37,7 @@ def file_dialog(starting_dir="E:\\robin"):
 
 def newest_subfolder(directory):
     try:
-        subfolders = [f.path for f in os.scandir(directory) if f.is_dir() and
-                      "Processed" in f.name]
+        subfolders = [f.path for f in os.scandir(directory) if f.is_dir() and "Processed" in f.name]
         newest_folder = max(subfolders, key=os.path.getmtime)
         return newest_folder
     except ValueError:
@@ -46,8 +45,8 @@ def newest_subfolder(directory):
         return None
 
 
-def load_timing_params(path='timing_params.json'):
-    with open(path, 'r') as json_file:
+def load_timing_params(path="timing_params.json"):
+    with open(path, "r") as json_file:
         timing_params = json.load(json_file)
     return timing_params
 
@@ -87,8 +86,7 @@ def is_valid_folder(folder_path, required_subfolder=None, file_patterns=None):
 
     required_subfolder_path = os.path.join(folder_path, required_subfolder)
     if not os.path.isdir(required_subfolder_path):
-        print(
-            f"The required subfolder {required_subfolder} is missing from {folder_path}.")
+        print(f"The required subfolder {required_subfolder} is missing from {folder_path}.")
         return False
 
     subfolder_contents = os.listdir(required_subfolder_path)
@@ -100,12 +98,44 @@ def is_valid_folder(folder_path, required_subfolder=None, file_patterns=None):
         ns5_files = [f for f in subfolder_contents if ns5_pattern.match(f)]
 
         if not mat_files or not ns5_files:
-            print(
-                f"Missing files for pattern {pattern} in {required_subfolder_path}.")
+            print(f"Missing files for pattern {pattern} in {required_subfolder_path}.")
             return False
         if len(mat_files) > 1 or len(ns5_files) > 1:
-            print(
-                f"Multiple files found for pattern {pattern} in {required_subfolder_path}.")
+            print(f"Multiple files found for pattern {pattern} in {required_subfolder_path}.")
             return False
 
     return True
+
+
+def sort_data_folders(data_folders):
+    """
+    Sorts a list of data folders by the date found in the folder name.
+
+    Args:
+        data_folders (list[str]): List of folder paths.
+
+    Returns:
+        list[str]: Sorted list of folder paths by date.
+    """
+
+    def parse_date_from_path(path):
+        # Extract the folder name from the path (last component of the path)
+        folder_name = os.path.basename(path)
+        # Assume the date is in the format 'DD-MMM-YYYY' at the end of the folder name
+        date_str = folder_name.split("-")[-3:]  # Take the last 3 parts which are day, month, year
+        date_str = "-".join(date_str)  # Recreate the date string
+        return datetime.strptime(date_str, "%d-%b-%Y")  # Parse the date
+
+    return sorted(data_folders, key=parse_date_from_path)
+
+
+def convert_dates_to_relative_days(date_string_arr):
+    sorted_dates = sort_data_folders(date_string_arr)
+    first_date = datetime.strptime(sorted_dates[0].split("\\")[-1], "%d-%b-%Y")
+    relative_days = []
+    for folder in sorted_dates:
+        current_date = datetime.strptime(folder.split("\\")[-1], "%d-%b-%Y")
+        days_diff = (current_date - first_date).days
+        relative_days.append(days_diff)
+
+    return relative_days

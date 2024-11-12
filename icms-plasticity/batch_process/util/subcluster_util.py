@@ -32,11 +32,9 @@ def mean_norm_peak(dense_template, sparse_ch_indices, min_idx=30, range_offset=1
 def exclude_artifact_subcluster(analyzer, unit_id, subcluster_indices):
     # set 120 um sparsity radius to ignore more channels nearby primary channel
     # for mean_norm_peak calculation
-    sparse_analyzer = analyzer.copy()
 
-    sparse_analyzer.sparsity = si.compute_sparsity(
-        sparse_analyzer, method="radius", radius_um=120)
-    unit_id_to_ch_ind = sparse_analyzer.sparsity.unit_id_to_channel_indices
+    sparsity = si.compute_sparsity(analyzer, method="radius", radius_um=120)
+    unit_id_to_ch_ind = sparsity.unit_id_to_channel_indices
     sparse_ch_indices = unit_id_to_ch_ind[unit_id]
 
     # dense analyzer
@@ -45,7 +43,6 @@ def exclude_artifact_subcluster(analyzer, unit_id, subcluster_indices):
     dense_template = np.mean(wvfs[subcluster_indices, :, :], axis=0)
 
     mnr = mean_norm_peak(dense_template, sparse_ch_indices)
-
     # set 60 um sparsity radius
     # analyzer.sparsity = si.compute_sparsity(
     #     analyzer, method="radius", radius_um=60)
@@ -134,7 +131,7 @@ def isi_violation_percentage(spike_train, refractory_period=2e-3, threshold=2):
     return violation_percentage, isi_good
 
 
-def accept_subcluster(analyzer, unit_id, subcluster_indices, template_ch_dict, min_idx=30, max_iterations=5):
+def accept_subcluster(analyzer, unit_id, subcluster_indices, min_idx=30, max_iterations=5):
     original_indices = np.arange(len(subcluster_indices))
 
     templates = analyzer.get_extension("templates")
@@ -143,14 +140,10 @@ def accept_subcluster(analyzer, unit_id, subcluster_indices, template_ch_dict, m
     wvf_ext = analyzer.get_extension("waveforms")
     wvfs = wvf_ext.get_waveforms_one_unit(unit_id=unit_id)
 
+    primary_ch_wvfs = template_util.get_unit_primary_ch_wvfs(analyzer, unit_id)
+
     wvf_shape = template.shape
-
-    if templates.sparsity is None:
-        primary_ch_idx = template_ch_dict[unit_id]["primary_ch_idx_dense"]
-    else:
-        primary_ch_idx = template_ch_dict[unit_id]["primary_ch_idx_sparse"]
-
-    primary_ch_subc_wvfs = wvfs[subcluster_indices, :, primary_ch_idx]
+    primary_ch_subc_wvfs = primary_ch_wvfs[subcluster_indices, :]
 
     primary_ch_subc_template = np.mean(primary_ch_subc_wvfs, axis=0)
 
@@ -180,11 +173,9 @@ def accept_subcluster(analyzer, unit_id, subcluster_indices, template_ch_dict, m
     current_indices = original_indices
     for iteration in range(max_iterations):
         snr_valley, snr_good = calculate_snr(
-            primary_ch_subc_wvfs, min_idx, current_indices
-        )
+            primary_ch_subc_wvfs, min_idx, current_indices)
         violation_percentage, isi_good = isi_violation_percentage(
-            spike_train[current_indices]
-        )
+            spike_train[current_indices])
         print(f"\tISI violation %: {violation_percentage:.2f}")
 
         if snr_good and isi_good:
@@ -226,9 +217,8 @@ def post_hoc_check(analyzer, unit_id, subcluster_indices, min_idx=30):
     else:
         primary_ch_idx = template_ch_dict[unit_id]["primary_ch_idx_sparse"]
 
-    primary_ch_subc_wvfs = analyzer.get_waveforms(unit_id=unit_id)[
-        subcluster_indices, :, primary_ch_idx
-    ]
+    primary_ch_subc_wvfs = analyzer.get_waveforms(
+        unit_id=unit_id)[subcluster_indices, :, primary_ch_idx]
     # plt.figure()
     # plt.plot(primary_ch_subc_wvfs.T)
 
@@ -238,8 +228,7 @@ def post_hoc_check(analyzer, unit_id, subcluster_indices, min_idx=30):
         subcluster_indices]
 
     snr_valley, snr_good = calculate_snr(
-        primary_ch_subc_wvfs, min_idx, original_indices
-    )
+        primary_ch_subc_wvfs, min_idx, original_indices)
 
     if exclude_artifact_subcluster(analyzer, unit_id, subcluster_indices):
         print("\tSubcluster classified as artifact.")
@@ -254,8 +243,7 @@ def post_hoc_check(analyzer, unit_id, subcluster_indices, min_idx=30):
         return "low SNR"
 
     violation_percentage, isi_good = isi_violation_percentage(
-        spike_train[original_indices]
-    )
+        spike_train[original_indices])
 
     if not isi_good:
         print("\tSubcluster ISI violation rate too high.")
@@ -272,9 +260,8 @@ def post_hoc_check(analyzer, unit_id, subcluster_indices, min_idx=30):
 def plot_umap_subcluster(unit_id, x, y, final_labels, subcluster_ids):
     plt.figure()
     colors = ["C0", "C1", "C2", "C3", "C4", "C5"]
-    label_colors = {
-        label: colors[i % len(colors)] for i, label in enumerate(subcluster_ids)
-    }
+    label_colors = {label: colors[i % len(colors)]
+                    for i, label in enumerate(subcluster_ids)}
     cluster_colors = [label_colors[label] for label in final_labels]
     scatter = plt.scatter(x, y, c=cluster_colors, s=1, alpha=1)
     handles = [
@@ -297,7 +284,6 @@ def plot_umap_subcluster(unit_id, x, y, final_labels, subcluster_ids):
 
 def plot_clustered_waveforms(
     analyzer,
-    template_ch_dict,
     unit_id,
     waveform_labels,
     template_labels,
@@ -316,12 +302,7 @@ def plot_clustered_waveforms(
     wvf_ext = analyzer.get_extension("waveforms")
     wvfs = wvf_ext.get_waveforms_one_unit(unit_id=unit_id)
 
-    if analyzer.sparsity is None:
-        key = "primary_ch_idx_dense"
-    else:
-        key = "primary_ch_idx_sparse"
-
-    primary_ch_idx = template_ch_dict[unit_id][key]
+    primary_ch_wvfs = template_util.get_unit_primary_ch_wvfs(analyzer, unit_id)
 
     num_cols = 3
     num_rows = (len(unique_labels) + num_cols - 1) // num_cols
@@ -334,7 +315,7 @@ def plot_clustered_waveforms(
         ax = axes[i]
         event_indices = np.where(waveform_labels == unique_label)[0]
 
-        all_wvfs = wvfs[event_indices, :, primary_ch_idx]
+        all_wvfs = primary_ch_wvfs[event_indices, :]
 
         if plot_mean_std:
             mean_wvfs = np.mean(all_wvfs, axis=0)
@@ -384,6 +365,7 @@ def plot_clustered_waveforms(
     for j in range(i + 1, len(axes)):
         fig.delaxes(axes[j])
 
+    plt.suptitle(f"{unit_id}")
     plt.tight_layout()  # Adjust layout to prevent overlap
     plt.show()
     plt.pause(0.001)

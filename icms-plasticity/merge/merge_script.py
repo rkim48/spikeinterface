@@ -22,12 +22,11 @@ from batch_process.merge.classify_cell_type import (
     classify_child_units_into_cell_types,
     plot_acg_with_fit,
 )
+
 # %%
 
 
-def horizontal_merge_policy(
-    similarity_matrix, putative_cell_types, merge_candidate_ids, threshold=0.9
-):
+def horizontal_merge_policy(similarity_matrix, putative_cell_types, merge_candidate_ids, threshold=0.9):
     """
     Determine groups of units to merge based on template similarity and cell type.
 
@@ -51,10 +50,8 @@ def horizontal_merge_policy(
         A list of groups, where each group is a list of unit IDs that should be merged together.
         Groups with only a single unit are not included in the output.
     """
-    groups = find_similar_groups(
-        similarity_matrix, putative_cell_types, threshold)
-    units_to_merge = [[merge_candidate_ids[i]
-                       for i in group] for group in groups]
+    groups = find_similar_groups(similarity_matrix, putative_cell_types, threshold)
+    units_to_merge = [[merge_candidate_ids[i] for i in group] for group in groups]
 
     # Filter out single-unit groups if no merging is needed
     merge_groups = [group for group in units_to_merge if len(group) > 1]
@@ -62,15 +59,12 @@ def horizontal_merge_policy(
     return merge_groups
 
 
-def plot_horizontal_merge(
-    we_accept, result, merge_candidate_ids, merge_groups, similarity_matrix
-):
+def plot_horizontal_merge(we_accept, result, merge_candidate_ids, merge_groups, similarity_matrix):
     N = len(merge_candidate_ids)
     fig, axes = plt.subplots(2, N + 1, figsize=(12, 8))
 
     colors = plt.cm.get_cmap("tab10", 10)
-    unit_colors = {unit_id: colors(i)
-                   for i, unit_id in enumerate(merge_candidate_ids)}
+    unit_colors = {unit_id: colors(i) for i, unit_id in enumerate(merge_candidate_ids)}
     si.plot_unit_templates(
         we_accept,
         unit_ids=merge_candidate_ids,
@@ -82,9 +76,7 @@ def plot_horizontal_merge(
         axes=axes[0, 0:N],
     )
 
-    templates = plot_primary_ch_template(
-        we_accept, merge_candidate_ids, plot=True, ax=axes[0, N]
-    )
+    templates = plot_primary_ch_template(we_accept, merge_candidate_ids, plot=True, ax=axes[0, N])
 
     plot_template_cosine_similarity_matrix(similarity_matrix, ax=axes[1, N])
 
@@ -107,8 +99,7 @@ def plot_horizontal_merge(
 def horizontal_merge(data_folder):
     job_kwargs = dict(n_jobs=5, chunk_duration="1s", progress_bar=True)
     save_folder = Path(data_folder) / "batch_sort"
-    we = si.load_waveforms(folder=save_folder /
-                           "waveforms_3", with_recording=True)
+    we = si.load_waveforms(folder=save_folder / "waveforms_3", with_recording=True)
     sorting = si.load_extractor(save_folder / "sorting_3")
 
     # Create directory to save horizontal merge viz
@@ -127,8 +118,7 @@ def horizontal_merge(data_folder):
     # Read dataframe from cell type classifier and set extractor sparsity for plotting
     df = result["df"]
     df.set_index("unit_id", inplace=True)
-    we_accept.sparsity = si.compute_sparsity(
-        we_accept, method="radius", radius_um=60)
+    we_accept.sparsity = si.compute_sparsity(we_accept, method="radius", radius_um=60)
 
     # Initialize curation sorting object
     cs = CurationSorting(parent_sorting=sorting_accept, make_graph=True)
@@ -138,9 +128,7 @@ def horizontal_merge(data_folder):
     parent_ids = [key for key in property_keys if "parent" in key]
     parent_ids = sorted(parent_ids, key=lambda x: int(x.split("parent_id")[1]))
 
-    ppt_inserter = PPTImageInserter(
-        grid_dims=(2, 1), spacing=(0.05, 0.05), title_font_size=16
-    )
+    ppt_inserter = PPTImageInserter(grid_dims=(2, 1), spacing=(0.05, 0.05), title_font_size=16)
 
     for parent_id in parent_ids:
         parent_property = sorting_accept.get_property(parent_id)
@@ -149,18 +137,11 @@ def horizontal_merge(data_folder):
         merge_candidate_ids = unit_ids[parent_property == 1]
 
         if len(merge_candidate_ids) > 1:
-            templates = get_template_ch_template(
-                we_accept, merge_candidate_ids)
-            similarity_matrix = get_template_cosine_similarity_matrix(
-                templates)
-            putative_cell_types = df.loc[merge_candidate_ids,
-                                         "cell_type"].tolist()
-            merge_groups = horizontal_merge_policy(
-                similarity_matrix, putative_cell_types, merge_candidate_ids
-            )
-            plot_horizontal_merge(
-                we_accept, result, merge_candidate_ids, merge_groups, similarity_matrix
-            )
+            templates = get_template_ch_template(we_accept, merge_candidate_ids)
+            similarity_matrix = get_template_cosine_similarity_matrix(templates)
+            putative_cell_types = df.loc[merge_candidate_ids, "cell_type"].tolist()
+            merge_groups = horizontal_merge_policy(similarity_matrix, putative_cell_types, merge_candidate_ids)
+            plot_horizontal_merge(we_accept, result, merge_candidate_ids, merge_groups, similarity_matrix)
 
             img_path = img_save_dir / "horizontal.png"
             plt.savefig(str(img_path))
@@ -216,7 +197,7 @@ def automerge_func(we):
         censored_period_ms=2,
         refractory_period_ms=1,
         steps=steps_list,
-        extra_outputs=True
+        extra_outputs=True,
     )
 
     return merges, components, outs
@@ -225,10 +206,10 @@ def automerge_func(we):
 def assign_colors_to_components(we, components):
     all_unit_ids = we.unit_ids
     num_components = len(components)
-    cmap = plt.get_cmap('tab10')  # You can choose any colormap you like
+    cmap = plt.get_cmap("tab10")  # You can choose any colormap you like
     colors = cmap(np.linspace(0, 1, num_components))
     # Default color is black
-    unit_colors = {unit_id: 'k' for unit_id in all_unit_ids}
+    unit_colors = {unit_id: "k" for unit_id in all_unit_ids}
 
     for comp_idx, component in enumerate(components):
         for unit in component:
@@ -254,8 +235,7 @@ def vertical_merge(sorting_h, we_h, save_folder):
     # Filter merges by putative cell type
     putative_cell_types_dict = df["cell_type"].to_dict()
 
-    filtered_merges = filter_merges_by_cell_type(
-        merges, putative_cell_types_dict)
+    filtered_merges = filter_merges_by_cell_type(merges, putative_cell_types_dict)
 
     # Build components from filtered pairs
     components = build_components_from_pairs(filtered_merges)
@@ -266,8 +246,7 @@ def vertical_merge(sorting_h, we_h, save_folder):
             cs.merge(units_to_merge)
 
         # plot unit templates and acgs with merges denoted by color
-        plot_units_in_batches(
-            we_h, save_folder, ppt_name='pre_merge', unit_colors=unit_colors)
+        plot_units_in_batches(we_h, save_folder, ppt_name="pre_merge", unit_colors=unit_colors)
 
         new_unit_ids = np.arange(len(cs.sorting.unit_ids))
         sorting_merge = cs.sorting.rename_units(new_unit_ids)
@@ -285,7 +264,7 @@ def vertical_merge(sorting_h, we_h, save_folder):
 
         si.compute_correlograms(we_merge)
         si.compute_template_similarity(we_merge)
-        plot_units_in_batches(we_merge, save_folder, ppt_name='post_merge')
+        plot_units_in_batches(we_merge, save_folder, ppt_name="post_merge")
 
     else:
         we_merge = si.extract_waveforms(
@@ -304,16 +283,18 @@ def vertical_merge(sorting_h, we_h, save_folder):
 
 # %%
 if __name__ == "__main__":
-    # starting_dir = "C:\\data"
-    # # data_folders = file_dialog(starting_dir=starting_dir)
+    path_1 = "E:\\data\\ICMS93\\behavior\\30-Aug-2023"
+    path_2 = "C:\\data\\ICMS93\\behavior\\30-Aug-2023"
 
-    # # debug
-    # data_folders = ["C:\\data\\ICMS93\\Behavior\\12-Sep-2023"]
+    if os.path.exists(path_1):
+        data_folder = path_1
+    elif os.path.exists(path_2):
+        data_folder = path_2
+    else:
+        data_folder = None  # or raise an error, or assign a default path
+        print("Neither directory exists.")
 
-    # for i, data_folder in enumerate(data_folders):
-    #     print("\n###########################################")
-    #     print(f"{data_folder}: {i+1}/{len(data_folders)}")
-    #     print("###########################################")
-    #     save_folder = Path(data_folder) / "batch_sort"
-    #     sorting_h, we_h = horizontal_merge(data_folder)
+    save_folder = Path(data_folder) / "batch_sort"
+
+    sorting_h, we_h = horizontal_merge(data_folder)
     we_merge = vertical_merge(sorting_h, we_h, save_folder)

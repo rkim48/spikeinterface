@@ -15,7 +15,7 @@ from batch_process.util.misc import *
 
 # %% Load example data
 
-data_folder = 'C:\\data\\ICMS93\\behavior\\30-Aug-2023'
+data_folder = "C:\\data\\ICMS93\\behavior\\30-Aug-2023"
 start_time = time.time()
 dataloader = load_data(
     data_folder,
@@ -31,8 +31,7 @@ ch_ids = rec.channel_ids
 # %%
 # from spikeinterface.preprocessing.mean_artifact_subtract import MeanArtifactSubtractedRecording
 flattened_stim = [ts for l in all_stim_timestamps for ts in l]
-offset_stim_ts = [[int(item + 0) for item in sublist]
-                  for sublist in all_stim_timestamps]
+offset_stim_ts = [[int(item + 0) for item in sublist] for sublist in all_stim_timestamps]
 art_remove_pre = 0.5
 art_remove_post1 = 1.4  # 1.4
 art_remove_post2 = 1.5  # 1.5
@@ -40,19 +39,16 @@ trend_remove_post_pulse_start = 1.4  # 1.4
 trend_remove_post_pulse_end = 10
 
 # %%
-rec1 = sp.remove_artifacts(
-    rec, flattened_stim,  ms_before=art_remove_pre, ms_after=art_remove_post1, mode='zeros')
-rec2 = sp.mean_artifact_subtract(
-    rec1, list_triggers=offset_stim_ts, post_stim_window_ms=10, mode='median')
+rec1 = sp.remove_artifacts(rec, flattened_stim, ms_before=art_remove_pre, ms_after=art_remove_post1, mode="zeros")
+rec2 = sp.mean_artifact_subtract(rec1, list_triggers=offset_stim_ts, post_stim_window_ms=10, mode="median")
 rec3 = sp.trend_subtract(
-    rec2, all_stim_timestamps, trend_remove_post_pulse_start, trend_remove_post_pulse_end, mode='poly', poly_order=3)
+    rec2, all_stim_timestamps, trend_remove_post_pulse_start, trend_remove_post_pulse_end, mode="poly", poly_order=3
+)
 rec4 = sp.common_reference(rec3, operator="median", reference="global")
-rec5 = sp.remove_artifacts(
-    rec4, flattened_stim, ms_before=art_remove_pre, ms_after=art_remove_post1, mode='cubic')
+rec5 = sp.remove_artifacts(rec4, flattened_stim, ms_before=art_remove_pre, ms_after=art_remove_post1, mode="cubic")
 rec6 = sp.bandpass_filter(rec5, freq_min=300, freq_max=5000)
-rec7 = sp.remove_artifacts(
-    rec6, flattened_stim, ms_before=art_remove_pre, ms_after=art_remove_post2, mode='zeros')
-rec8 = sp.whiten(si.scale(rec7, dtype='float'), dtype='float32')
+rec7 = sp.remove_artifacts(rec6, flattened_stim, ms_before=art_remove_pre, ms_after=art_remove_post2, mode="zeros")
+rec8 = sp.whiten(si.scale(rec7, dtype="float"), dtype="float32")
 
 # %%
 trace1 = rec1.get_traces(return_scaled=True)
@@ -67,28 +63,31 @@ trace7 = rec7.get_traces(return_scaled=True)
 trace8 = rec8.get_traces(return_scaled=False)
 
 # %% Plot
-ch_to_plot = np.arange(15, 20)
+ch_to_plot = np.arange(15, 25)
 start_frame = int(fs * 59)
-end_frame = int(fs * 62)
-colors = plt.rcParams['axes.prop_cycle'].by_key()['color']
+end_frame = int(fs * 60.5)
+t = np.arange(0, (end_frame - start_frame)) / 30
+colors = plt.rcParams["axes.prop_cycle"].by_key()["color"]
 
-plt.plot(trace1[start_frame:end_frame, ch_to_plot], color=colors[0])
-plt.plot(trace2[start_frame:end_frame, ch_to_plot], color=colors[1])
-plt.plot(trace3[start_frame:end_frame, ch_to_plot], color=colors[2])
-plt.plot(trace4[start_frame:end_frame, ch_to_plot], color=colors[3])
-plt.plot(trace5[start_frame:end_frame, ch_to_plot], color=colors[4])
-plt.plot(trace6[start_frame:end_frame, ch_to_plot], color=colors[5])
-plt.plot(trace7[start_frame:end_frame, ch_to_plot], color=colors[6])
-plt.plot(trace8[start_frame:end_frame, ch_to_plot], color=colors[7])
+plt.plot(t, trace1[start_frame:end_frame, ch_to_plot], color=colors[0])
+plt.plot(t, trace2[start_frame:end_frame, ch_to_plot], color=colors[1], linewidth=0.5)
+plt.plot(t, trace3[start_frame:end_frame, ch_to_plot], color=colors[2], linewidth=0.5)
+# plt.plot(t, trace4[start_frame:end_frame, ch_to_plot], color=colors[3])
+# plt.plot(t, trace5[start_frame:end_frame, ch_to_plot], color=colors[4])
+plt.plot(t, trace6[start_frame:end_frame, ch_to_plot], color=colors[3], linewidth=0.5)
+plt.plot(t, trace7[start_frame:end_frame, ch_to_plot], color=colors[4])
+# plt.plot(trace8[start_frame:end_frame, ch_to_plot], color=colors[7])
 
-plt.plot([], [], color=colors[0], label='Trace 1')
-plt.plot([], [], color=colors[1], label='Trace 2')
-plt.plot([], [], color=colors[2], label='Trace 3')
-plt.plot([], [], color=colors[3], label='Trace 4')
-plt.plot([], [], color=colors[4], label='Trace 5')
-plt.plot([], [], color=colors[5], label='Trace 6')
-plt.plot([], [], color=colors[6], label='Trace 7')
-plt.plot([], [], color=colors[7], label='Trace 8')
+plt.plot([], [], color=colors[0], label="1: Blank")
+plt.plot([], [], color=colors[1], label="2: Mean artifact subtract")
+plt.plot([], [], color=colors[2], label="3: Poly fit subtract")
+# plt.plot([], [], color=colors[3], label='4: Common ref')
+# plt.plot([], [], color=colors[4], label='5: Cubic interpolate')
+plt.plot([], [], color=colors[3], label="6: Bandpass filter")
+plt.plot([], [], color=colors[4], label="7: Blank again")
+# plt.plot([], [], color=colors[7], label='Trace 8')
 
-plt.legend(loc='upper right')
+plt.title("Example traces after preprocessing steps")
+plt.legend(loc="upper right")
+plt.xlabel("Time (ms)")
 plt.show()

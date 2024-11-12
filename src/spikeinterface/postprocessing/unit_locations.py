@@ -53,7 +53,7 @@ class ComputeUnitLocations(AnalyzerExtension):
             method_kwargs = self.params.pop("method_kwargs")
             self.params.update(**method_kwargs)
 
-    def _set_params(self, method="monopolar_triangulation", **method_kwargs):
+    def _set_params(self, method="center_of_mass", **method_kwargs):
         params = dict(method=method)
         params.update(method_kwargs)
         return params

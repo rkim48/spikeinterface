@@ -381,6 +381,35 @@ class UnitWaveformsWidget(BaseWidget):
                     ax.plot([xscale_bar[0], xscale_bar[0]], [min_wfs - offset, min_wfs - offset + length], color="k")
                     ax.text(x_offset, min_wfs - offset + length // 3, f"{length_uv} $\mu$V", fontsize=8, rotation=90)
 
+                if not dp.plot_waveforms and dp.scalebar and dp.same_axis:
+                    # plot the scalebar only once
+                    if i == 0:
+                        template_for_scale = dp.templates[i, :, :][:, chan_inds] * dp.scale
+                        nbefore_time = int(dp.nbefore / dp.sampling_frequency * 1000)
+                        xscale_bar = [xvectors_flat[0] - 1, xvectors_flat[dp.nbefore] - 1]  # move left by 1 ms
+
+                        min_wfs = np.min(template)
+                        offset = 0.1 * (np.max(template) - np.min(template))
+                        ax.plot(xscale_bar, [min_wfs - offset, min_wfs - offset], color="k")
+                        ax.text(
+                            xscale_bar[0] - xscale_bar[1] // 2,
+                            min_wfs - 1.5 * offset,
+                            f"{nbefore_time} ms",
+                            fontsize=8,
+                        )
+
+                        y_scale_length_uv = 200  # Fixed length of 100 µV
+                        y_scale_length = y_scale_length_uv * dp.scale * y_scale
+
+                        length = int(np.ptp(template) // 5)
+                        x_offset = xscale_bar[0] - 1.5
+                        ax.plot(
+                            [xscale_bar[0], xscale_bar[0]],
+                            [min_wfs - offset, min_wfs - offset + y_scale_length],
+                            color="k",
+                        )
+                        ax.text(x_offset, min_wfs - offset + length // 10, f"{200} $\mu$V", fontsize=8, rotation=90)
+
             # plot channels
             if dp.plot_channels:
                 # TODO enhance this
@@ -389,9 +418,7 @@ class UnitWaveformsWidget(BaseWidget):
             if dp.same_axis and dp.plot_legend:
                 if hasattr(self, "legend") and self.legend is not None:
                     self.legend.remove()
-                self.legend = self.figure.legend(
-                    loc="upper center", bbox_to_anchor=(0.5, 1.0), ncol=5, fancybox=True, shadow=True
-                )
+                self.legend = self.ax.legend(loc="lower right", ncol=1, fancybox=True, shadow=False)
 
     def plot_ipywidgets(self, data_plot, **backend_kwargs):
         import matplotlib.pyplot as plt

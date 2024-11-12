@@ -129,8 +129,8 @@ def compute_center_of_mass(
     sorting_analyzer_or_templates: SortingAnalyzer | Templates,
     unit_ids=None,
     peak_sign: str = "neg",
-    radius_um: float = 75,
-    feature: str = "ptp",
+    radius_um: float = 150,
+    feature: str = "peak_voltage",
 ) -> np.ndarray:
     """
     Computes the center of mass (COM) of a unit based on the template amplitudes.
@@ -145,7 +145,7 @@ def compute_center_of_mass(
         Sign of the template to compute best channels
     radius_um : float
         Radius to consider in order to estimate the COM
-    feature : "ptp" | "mean" | "energy" | "peak_voltage", default: "ptp"
+    feature : "ptp" | "mean" | "energy" | "peak_voltage", default: "peak_voltage"
         Feature to consider for computation
 
     Returns

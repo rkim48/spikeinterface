@@ -6,18 +6,17 @@ from spikeinterface.widgets import plot_unit_templates
 from spikeinterface.curation import get_potential_auto_merge
 
 from batch_process.util.ppt_image_inserter import *
+
 # %%
 
 
-def perform_grid_search(we, save_dir, df=None):
+def perform_grid_search(analyzer, save_dir, df=None):
     # Define parameter lists
 
     # For testing
-    maximum_distance_um_list = [30]
     contamination_thresh_list = [0.2]
     corr_diff_thresh_list = [0.3, 0.4, 0.6]
     template_diff_thresh_list = [0.2, 0.3, 0.6]
-    num_channels_list = [3]
     fc_balance_list = [0.5]
     censored_period_list = [2]
     refract_period_list = [1]
@@ -33,65 +32,53 @@ def perform_grid_search(we, save_dir, df=None):
     # refract_period_list = [1]
 
     step_lists = [
-        "min_spikes",
+        "num_spikes",
         "remove_contaminated",
-        "unit_positions",
-        "correlogram",
+        "unit_locations",
         "template_similarity",
-        "check_increase_score",
+        "correlogram",
+        "quality_score",
     ]
 
     unit_colors_template = {unit_id: "k" for unit_id in we.unit_ids}
     colormap = plt.cm.viridis
+
+    # TODO
     we.sparsity = si.compute_sparsity(we, method="radius", radius_um=60)
 
     # Create a list of parameter names and values only for those with more than one value
     param_lists = {
-        "maximum_distance_um": maximum_distance_um_list,
         "contamination_thresh": contamination_thresh_list,
         "corr_diff_thresh": corr_diff_thresh_list,
         "template_diff_thresh": template_diff_thresh_list,
-        "num_channels": num_channels_list,
-        "fc_balance": fc_balance_list,
-        "censored_period": censored_period_list,
-        "refract_period": refract_period_list,
+        "firing_contamination_balance": fc_balance_list,
+        "censor_correlograms_ms": censored_period_list,
+        "refractory_period_ms": refract_period_list,
     }
 
-    varying_params = {
-        name: values for name, values in param_lists.items() if len(values) > 1
-    }
-    fixed_params = {
-        name: values[0] for name, values in param_lists.items() if len(values) == 1
-    }
+    varying_params = {name: values for name, values in param_lists.items() if len(values) > 1}
+    fixed_params = {name: values[0] for name, values in param_lists.items() if len(values) == 1}
 
     # Create the parameter grid for varying parameters
-    param_grid = list(
-        itertools.product(*(values for values in varying_params.values()))
-    )
+    param_grid = list(itertools.product(*(values for values in varying_params.values())))
 
     total_iterations = len(param_grid)
-    gradient_colors = [colormap(i / total_iterations)
-                       for i in range(total_iterations)]
+    gradient_colors = [colormap(i / total_iterations) for i in range(total_iterations)]
 
     # Perform grid search
-    ppt_inserter = PPTImageInserter(
-        grid_dims=(3, 2), spacing=(0.05, 0.05), title_font_size=16
-    )
+    ppt_inserter = PPTImageInserter(grid_dims=(3, 2), spacing=(0.05, 0.05), title_font_size=16)
 
     for iteration, param_values in enumerate(param_grid):
         ppt_inserter.add_slide(f"{param_values}")
         print(f"Iteration {iteration + 1} out of {total_iterations}...")
         color_for_iteration = gradient_colors[iteration]
-        unit_colors_acg = {
-            unit_id: color_for_iteration for unit_id in we.unit_ids}
+        unit_colors_acg = {unit_id: color_for_iteration for unit_id in we.unit_ids}
 
         # Combine fixed and varying parameters
-        params = {
-            name: value for name, value in zip(varying_params.keys(), param_values)
-        }
+        params = {name: value for name, value in zip(varying_params.keys(), param_values)}
         params.update(fixed_params)
 
-        merges, components, outs = get_potential_auto_merge(
+        merges, components = get_potential_auto_merge(
             we,
             minimum_spikes=50,
             maximum_distance_um=params["maximum_distance_um"],
@@ -108,9 +95,7 @@ def perform_grid_search(we, save_dir, df=None):
 
         if df is not None:
             putative_cell_types_dict = df["cell_type"].to_dict()
-            filtered_merges = filter_merges_by_cell_type(
-                merges, putative_cell_types_dict
-            )
+            filtered_merges = filter_merges_by_cell_type(merges, putative_cell_types_dict)
             components = build_components_from_pairs(filtered_merges)
 
         # Plot and save figures for each merge
@@ -135,13 +120,10 @@ def perform_grid_search(we, save_dir, df=None):
 
             # Second subplot grid for autocorrelograms
             gs2 = GridSpecFromSubplotSpec(1, len(merge), subplot_spec=gs[1])
-            autocorr_axes = [fig.add_subplot(gs2[j])
-                             for j in range(len(merge))]
+            autocorr_axes = [fig.add_subplot(gs2[j]) for j in range(len(merge))]
 
             # Plot autocorrelograms on the new set of axes
-            p = si.plot_autocorrelograms(
-                we, unit_ids=merge, axes=autocorr_axes, unit_colors=unit_colors_acg
-            )
+            p = si.plot_autocorrelograms(we, unit_ids=merge, axes=autocorr_axes, unit_colors=unit_colors_acg)
 
             # Hide x-axis and y-axis labels for the autocorrelograms
             for ax in autocorr_axes:
@@ -151,10 +133,7 @@ def perform_grid_search(we, save_dir, df=None):
             plt.tight_layout()
 
             # Construct the image name with only varying parameters
-            img_name = "merge_{}.png".format(
-                "_".join(
-                    f"{name}_{params[name]}" for name in varying_params.keys())
-            )
+            img_name = "merge_{}.png".format("_".join(f"{name}_{params[name]}" for name in varying_params.keys()))
             img_path = save_dir / img_name
 
             plt.savefig(str(img_path))

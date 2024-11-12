@@ -144,3 +144,13 @@ test_folder/
 # Mac OS
 .DS_Store
 test_data.json
+
+# Powerpoint
+*.pptx
+
+# Pickle files
+*.pkl
+
+# Images
+*.png
+icms-plasticity/images/

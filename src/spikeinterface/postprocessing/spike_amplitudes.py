@@ -133,7 +133,7 @@ class ComputeSpikeAmplitudes(AnalyzerExtension):
         self.data["amplitudes"] = amps
 
     def _get_data(self, outputs="numpy"):
-        all_amplitudes = self.data["amplitudes"]
+        all_amplitudes = self.data["amplitudes"]  # 98665
         if outputs == "numpy":
             return all_amplitudes
         elif outputs == "by_unit":

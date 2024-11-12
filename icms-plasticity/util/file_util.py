@@ -4,8 +4,10 @@ from util.is_valid_folder import is_valid_folder
 import os
 import re
 import json
+from datetime import datetime
 
 
+# %%
 def file_dialog(starting_dir="E:\\robin"):
     root = tk.Tk()
     root.withdraw()  # Hide the main window
@@ -13,8 +15,7 @@ def file_dialog(starting_dir="E:\\robin"):
     selected_folders = askopendirnames(initialdir=starting_dir)
 
     if selected_folders:
-        valid_folders = [
-            folder for folder in selected_folders if is_valid_folder(folder)]
+        valid_folders = [folder for folder in selected_folders if is_valid_folder(folder)]
         print("\nValid folders:")
         for folder in valid_folders:
             print(f"- {folder}")
@@ -27,8 +28,7 @@ def file_dialog(starting_dir="E:\\robin"):
 
 def newest_subfolder(directory):
     try:
-        subfolders = [f.path for f in os.scandir(directory) if f.is_dir() and
-                      "Processed" in f.name]
+        subfolders = [f.path for f in os.scandir(directory) if f.is_dir() and "Processed" in f.name]
         newest_folder = max(subfolders, key=os.path.getmtime)
         return newest_folder
     except ValueError:
@@ -36,8 +36,8 @@ def newest_subfolder(directory):
         return None
 
 
-def load_timing_params(path='timing_params.json'):
-    with open(path, 'r') as json_file:
+def load_timing_params(path="timing_params.json"):
+    with open(path, "r") as json_file:
         timing_params = json.load(json_file)
     return timing_params
 
@@ -66,6 +66,27 @@ def get_date_str(folder):
         raise ValueError("Date string not found in the folder path.")
 
 
-if __name__ == "__main__":
-    # valid_folders = file_dialog()
-    a = load_timing_params()
+def sort_data_folders(data_folders):
+    # returns sorted data folders by date
+    def parse_date_from_path(path):
+        date_str = path.split("\\")[-1]  # Extract the date part of the string
+        return datetime.strptime(date_str, "%d-%b-%Y")  # Parse the date
+
+    return sorted(data_folders, key=parse_date_from_path)
+
+
+def convert_dates_to_relative_days(date_string_arr):
+    sorted_dates = sort_data_folders(date_string_arr)
+    first_date = datetime.strptime(sorted_dates[0].split("\\")[-1], "%d-%b-%Y")
+    relative_days = []
+    for folder in sorted_dates:
+        current_date = datetime.strptime(folder.split("\\")[-1], "%d-%b-%Y")
+        days_diff = (current_date - first_date).days
+        relative_days.append(days_diff)
+
+    return relative_days
+
+
+# if __name__ == "__main__":
+# valid_folders = file_dialog()
+# a = load_timing_params()

@@ -2,6 +2,17 @@ from spikeinterface import full as si
 import numpy as np
 
 
+# def get_sparse_template(analyzer, unit_id):
+#     analyzer.sparsity = si.compute_sparsity(analyzer, method="radius", radius_um=60)
+
+#     analyzer.compute("random_spikes")
+#     analyzer.compute("waveforms")
+#     analyzer.compute("templates")
+
+#     templates_ext = analyzer.get_extension("templates")
+#     template = templates_ext.get_unit_template(unit_id)
+
+
 def get_unit_id_properties(sorting):
     property_keys = sorting.get_property_keys()
     unit_ids = sorting.unit_ids
@@ -16,12 +27,9 @@ def get_unit_id_properties(sorting):
 
 def get_bad_events_dict(bad_analyzer, bad_ids, sorting):
     # get dict that contains channel sample pair where bad events occur
-    bad_extremum_ch_inds = si.get_template_extremum_channel(
-        bad_analyzer, mode="at_index", outputs="index")
-    bad_sorting = sorting.select_units(
-        unit_ids=bad_ids, renamed_unit_ids=bad_ids)
-    bad_sv = bad_sorting.to_spike_vector(
-        extremum_channel_inds=bad_extremum_ch_inds)
+    bad_extremum_ch_inds = si.get_template_extremum_channel(bad_analyzer, mode="at_index", outputs="index")
+    bad_sorting = sorting.select_units(unit_ids=bad_ids, renamed_unit_ids=bad_ids)
+    bad_sv = bad_sorting.to_spike_vector(extremum_channel_inds=bad_extremum_ch_inds)
 
     channel_indices = bad_sv["channel_index"]
     sample_indices = bad_sv["sample_index"]
@@ -57,29 +65,26 @@ def align_waveforms(we, sorting):
     return align_sorting
 
 
-def wvf_acg_exporter(we, sorting, file_path):
-    unit_dict = {}
-    si.compute_correlograms(we)
-    if sorting is not None:
-        property_keys = sorting.get_property_keys()
-        keep_mask = np.where(sorting.get_property("accept") == 1)[0]
-        keep_units = sorting.unit_ids[keep_mask]
-    else:
-        keep_units = we.unit_ids
-    we_new = we.select_units(keep_units)
-    ccgs, time_bins = si.compute_correlograms(
-        we_new, window_ms=100, bin_ms=0.5)
+def get_adjusted_depth(depth, animal_id):
+    match animal_id:
+        case "ICMS92":
+            ch_out = 1
+        case "ICMS93":
+            ch_out = 1
+        case "ICMS98":
+            ch_out = 1
+        case "ICMS100":
+            ch_out = 1
+        case "ICMS101":
+            ch_out = 1
+        case _:
+            print(f"Animal ID '{animal_id}' not found.")
+            return None
 
-    for i, unit_id in enumerate(we_new.unit_ids):
-        data_dict = {}
-        data_dict["acg"] = ccgs[i, i, :]
-        data_dict["template"] = template
+    pitch_um = 60
+    angle_from_vertical_deg = 30
+    angle_from_vertical_rad = np.radians(angle_from_vertical_deg)
+    length_out = pitch_um * ch_out
+    adjusted_depth = (depth - length_out) * np.cos(angle_from_vertical_rad)
 
-        unit_dict[unit_id] = data_dict
-
-    # for i, unit_id in enumerate(we_new.unit_ids):
-    #     template = we_new.get_template(unit_id)
-    #     plt.figure()
-    #     plt.plot(template)
-    #     plt.axvline(30)
-    return unit_dict
+    return adjusted_depth

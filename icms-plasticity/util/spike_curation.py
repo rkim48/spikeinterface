@@ -9,7 +9,6 @@ import pickle
 def curate_spikes(sorting, we, save_folder, threshold_percentage=98, height=70,
                   MinPeakDistance=45, MaxPeakWidth=30, MinPeakProminence=50,
                   MinPeakWidth=3, plot_flag=False, midpoint=90):
-
     pickle_path = Path(save_folder) / "spike_data.pkl"
     if pickle_path.exists():
         with open(pickle_path, "rb") as f:
@@ -31,7 +30,7 @@ def curate_spikes(sorting, we, save_folder, threshold_percentage=98, height=70,
         print(f'Curating spikes for unit id {unit_id}...')
         waveforms = we.get_waveforms(unit_id=unit_id)
         spike_times = sorting.get_unit_spike_train(unit_id=unit_id)
-        assert(len(waveforms) == len(spike_times))
+        assert (len(waveforms) == len(spike_times))
         # 1. Identify the Primary Channel
         median_waveform = np.median(waveforms, axis=0)
         primary_channel_idx = np.argmin(median_waveform[midpoint, :])

@@ -1,0 +1,14 @@
+{
+    "pulse_win_ms": 10,
+    "post_stim_blank_ms": 1.5,
+    "pre_stim_blank_ms": 0.5,
+    "window_size_ms": 1400,
+    "stim_duration_ms": 700,
+    "post_stim_duration_ms": 700,
+    "windows_per_sample": 50,
+    "bootstrap_samples": 500,
+    "fs": 30000,
+    "bin_width_ms": 0.5,
+    "pulse_pre_samples": 0,
+    "pulse_post_samples": 300
+}

@@ -7,23 +7,25 @@ from spikeinterface import full as si
 
 from batch_process.util.ppt_image_inserter import PPTImageInserter
 
+# from merge.merge_util import get_unit_primary_ch_wvfs_dict
+
 
 # %%
 
 
-def plot_units_in_batches(analyzer, save_dir, ppt_name, unit_ids=None, unit_colors=None, batch_size=5):
+def plot_units_in_batches(sparse_analyzer, save_dir, ppt_name, unit_ids=None, unit_colors=None, batch_size=5):
 
-    analyzer.sparsity = si.compute_sparsity(
-        analyzer, method="radius", radius_um=60)
-    analyzer.compute("template_similarity")
+    if sparse_analyzer.sparsity is None:
+        print("Error! Analyzer is not sparse.")
+        return None
+    # analyzer.compute("template_similarity")
 
-    ppt_inserter = PPTImageInserter(
-        grid_dims=(2, 2), spacing=(0.05, 0.05), title_font_size=16
-    )
+    ppt_inserter = PPTImageInserter(grid_dims=(
+        2, 2), spacing=(0.05, 0.05), title_font_size=16)
 
     if unit_ids is None:
-        num_units = len(analyzer.unit_ids)
-        unit_ids = analyzer.unit_ids
+        num_units = len(sparse_analyzer.unit_ids)
+        unit_ids = sparse_analyzer.unit_ids
     else:
         num_units = len(unit_ids)
 
@@ -45,12 +47,13 @@ def plot_units_in_batches(analyzer, save_dir, ppt_name, unit_ids=None, unit_colo
 
         # Plot unit templates on the new set of axes
         for ax, unit_id in zip(template_axes, batch_unit_ids):
-            all_wvfs = analyzer.get_extension(extension_name="waveforms")
+            all_wvfs = sparse_analyzer.get_extension(
+                extension_name="waveforms")
             unit_wvfs = all_wvfs.get_waveforms_one_unit(unit_id=unit_id)
             num_spikes = len(unit_wvfs)
             si.plot_unit_templates(
-                analyzer,
-                sparsity=analyzer.sparsity,
+                sparse_analyzer,
+                sparsity=sparse_analyzer.sparsity,
                 unit_ids=[unit_id],
                 same_axis=True,
                 unit_colors=unit_colors,
@@ -70,7 +73,7 @@ def plot_units_in_batches(analyzer, save_dir, ppt_name, unit_ids=None, unit_colo
 
         # Plot autocorrelograms on the new set of axes
         si.plot_autocorrelograms(
-            analyzer,
+            sparse_analyzer,
             unit_ids=batch_unit_ids,
             axes=autocorr_axes,
             unit_colors=unit_colors,
@@ -94,15 +97,26 @@ def plot_units_in_batches(analyzer, save_dir, ppt_name, unit_ids=None, unit_colo
     ppt_inserter.save(save_dir / f"{ppt_name}.pptx")
 
 
-def plot_primary_ch_template(we, unit_ids, plot=True, ax=None):
-    from batch_process.util.curate_util import get_template_ch
+def plot_primary_ch_template(analyzer, unit_ids, template_ch_dict, plot=True, ax=None):
 
-    template_ch_dict = get_template_ch(we)
+    analyzer.sparsity = si.compute_sparsity(
+        analyzer, method="radius", radius_um=60)
+
+    analyzer.compute("random_spikes")
+    analyzer.compute("waveforms")
+    analyzer.compute("templates")
+
+    templates_ext = analyzer.get_extension("templates")
+    wvfs_per_unit = analyzer.sorting.count_num_spikes_per_unit()
+
     templates = []
     for unit_id in unit_ids:
-        num_wvfs = np.shape(we.get_waveforms(unit_id))[0]
-        primary_ch_idx = template_ch_dict[unit_id]["primary_ch_idx_sparse"]
-        template = we.get_template(unit_id)[:, primary_ch_idx]
+
+        num_wvfs = wvfs_per_unit[unit_id]
+
+        primary_ch_idx = template_ch_dict[unit_id]["primary_ch_idx_dense"]
+        template = templates_ext.get_unit_template(unit_id)[:, primary_ch_idx]
+
         templates.append(template)
         label = f"Unit {unit_id} ({num_wvfs} waveforms)"
         if plot:
@@ -154,9 +168,8 @@ def add_scale_bars(
     :param v_label: Label for the vertical scale bar.
     """
     # Add horizontal scale bar
-    ax.hlines(
-        h_pos[1], h_pos[0], h_pos[0] + h_length, color="black", linewidth=line_width
-    )
+    ax.hlines(h_pos[1], h_pos[0], h_pos[0] + h_length,
+              color="black", linewidth=line_width)
     # Position the horizontal label below the line
     ax.text(
         h_pos[0] + h_length / 2,
@@ -168,9 +181,8 @@ def add_scale_bars(
     )
 
     # Add vertical scale bar
-    ax.vlines(
-        v_pos[0], v_pos[1], v_pos[1] + v_length, color="black", linewidth=line_width
-    )
+    ax.vlines(v_pos[0], v_pos[1], v_pos[1] + v_length,
+              color="black", linewidth=line_width)
     # Rotate the vertical label by 90 degrees
     ax.text(
         v_pos[0] - 0.25,
@@ -192,6 +204,10 @@ def add_scale_bars_wvf(
     line_width=1,
     h_label="",
     v_label="",
+    v_label_x_offset=50,
+    v_label_y_offset=50,
+    h_label_x_offset=50,
+    h_label_y_offset=10,
     font_size=10,
 ):
     """
@@ -207,13 +223,12 @@ def add_scale_bars_wvf(
     :param v_label: Label for the vertical scale bar.
     """
     # Add horizontal scale bar
-    ax.hlines(
-        h_pos[1], h_pos[0], h_pos[0] + h_length, color="black", linewidth=line_width
-    )
+    ax.hlines(h_pos[1], h_pos[0], h_pos[0] + h_length,
+              color="black", linewidth=line_width)
     # Position the horizontal label below the line
     ax.text(
-        h_pos[0] + h_length / 2,
-        h_pos[1] - 10,
+        h_pos[0] + h_label_x_offset,
+        h_pos[1] + h_label_y_offset,
         h_label,
         verticalalignment="top",
         horizontalalignment="center",
@@ -221,13 +236,12 @@ def add_scale_bars_wvf(
     )
 
     # Add vertical scale bar
-    ax.vlines(
-        v_pos[0], v_pos[1], v_pos[1] + v_length, color="black", linewidth=line_width
-    )
+    ax.vlines(v_pos[0], v_pos[1], v_pos[1] + v_length,
+              color="black", linewidth=line_width)
     # Rotate the vertical label by 90 degrees
     ax.text(
-        v_pos[0] - 0.25,
-        v_pos[1] + v_length - 50,
+        v_pos[0] + v_label_x_offset,
+        v_pos[1] + v_label_y_offset,
         v_label,
         verticalalignment="center",
         horizontalalignment="right",
